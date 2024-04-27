@@ -1,0 +1,1 @@
+# Código Sistema de gestión de datos en un entorno IoT
