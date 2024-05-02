@@ -2,35 +2,52 @@
 
 from functools import reduce
 
-def calculo_estadisticos_basicos(temperaturas):
-    n = len(temperaturas)
-    E_X = reduce(lambda x, y: x + y, temperaturas)/n
-    print('Media: ' + str(E_X))
+class Context:
+    def __init__(self, strategy=None):
+        self._strategy = strategy
 
-    tem_ord = zip(sorted(temperaturas), range(1,n+1))
-    medianas = list(filter(lambda x: esMediana(x[1], n), tem_ord))
-    medianas = list(map(lambda x: x[0], medianas))
+    def establecerEstrategia(self, strategy):
+        self._strategy = strategy
 
-    if len(medianas) == 1:
-        mediana = medianas[0]
+    def hacerAlgo(self, data):
+        return self._strategy.aplicarAlgoritmo(data)
 
-    else: 
-        mediana = sum(medianas) / 2
-
-    print('Mediana(s): ' + str(mediana))
-
-    S2 = reduce(lambda x,y: x + y, map(lambda x: (1/n) * (x - E_X)**2, temperaturas))
-    S = S2 ** (1/2)
+class ComputoEstadistico: #Interfaz de Estrategia
+    def aplicarAlgoritmo(self, data):
+        pass
     
-    print("Desviación típica: " + str(S))
+class Media_y_DesvTip(ComputoEstadistico):
+    def aplicarAlgoritmo(self, data):
+        n = len(data)
+        media = reduce(lambda x, y: x + y, data) / n
 
-def esMediana(ind, n):
-    if n%2 == 1:
-        return (n // 2) + 1 == ind
-    
-    else:
-        return (n // 2) == ind or (n // 2) + 1 == ind
-    
+        varianza = reduce(lambda x, y: x + y,
+                          map(lambda x: (1/n) * (x - media)**2, data ) )
+        desv_tip = varianza ** (.5)
 
-def sobrepasaTemperatura(temperaturas, umbral):
-    return any(map(lambda t: t > umbral, temperaturas))
+        return media, desv_tip
+
+class Cuantiles(ComputoEstadistico):
+    def aplicarAlgoritmo(self, data):
+        datos_ord = sorted(data)
+        n = len(datos_ord)
+
+        def cuartil(q):
+            indice = q * (n + 1) / 4
+
+            if indice % 1 == 0:
+                return datos_ord[int(indice) - 1]
+
+            else: 
+                return (datos_ord[int(indice) - 1] + datos_ord[int(indice)]) / 2
+
+        return tuple(map(cuartil, [1, 2, 3]))
+
+
+
+class Maximos_y_Minimos(ComputoEstadistico):
+    def aplicarAlgoritmo(self, data):
+        max = reduce(lambda x, y: x if x > y else y, data)
+        min = reduce(lambda x, y: x if x < y else y, data)
+
+        return max, min
