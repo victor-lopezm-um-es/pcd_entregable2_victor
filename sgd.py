@@ -1,6 +1,12 @@
 # Código Sistema de gestión de datos en un entorno IoT
 
 from functools import reduce
+from abc import ABC, abstractmethod
+import asyncio
+from queue import LifoQueue
+import random
+import time
+from datetime import datetime
 
 # Patrón Strategy
 class Context:
@@ -34,13 +40,19 @@ class Cuantiles(ComputoEstadistico):
         n = len(datos_ord)
 
         def cuartil(q):
+            if n == 1:
+                return datos_ord[0]
+
             indice = q * (n + 1) / 4
 
             if indice % 1 == 0:
                 return datos_ord[int(indice) - 1]
 
             else: 
-                return (datos_ord[int(indice) - 1] + datos_ord[int(indice)]) / 2
+                if int(indice) == n and q == 3:
+                    return datos_ord[-1]
+                else:
+                    return (datos_ord[int(indice) - 1] + datos_ord[int(indice)]) / 2
 
         return tuple(map(cuartil, [1, 2, 3]))
 
@@ -102,3 +114,129 @@ class ManejadorAumentoTemp(ManejadorTemperaturas):
 class Request:
     def __init__(self, level):
         self.level = level
+
+
+# Patrón Observer
+class GeneradorTemperaturas:
+    def __init__(self, ultima_temperatura=30, desviacion_tipica=1.5):
+        self._ultima_temperatura = ultima_temperatura
+        self._desviacion_tipica = desviacion_tipica
+
+    def _actualizarTemperatura(self, nuevaTemperatura):
+        self._ultima_temperatura = nuevaTemperatura
+
+    def generar_temperatura(self):
+        # Generar una temperatura aleatoria basada en la última temperatura registrada
+        nueva_temperatura = random.normalvariate(self._ultima_temperatura, self._desviacion_tipica)
+
+        # Actualizar la última temperatura registrada
+        self._ultima_temperatura = nueva_temperatura
+
+        # Obtener el timestamp actual
+        timestamp = int(time.time())
+
+        return (timestamp, nueva_temperatura)
+
+class Observable:
+    def __init__(self):
+        self._observers = []
+
+    def register_observer(self, observer):
+        self._observers.append(observer)
+
+    def remove_observer(self, observer):
+        self._observers.remove(observer)
+
+    def notify_observers(self, data):
+        for observer in self._observers:
+            observer.update(data)
+
+class Observer(ABC):
+    @abstractmethod
+    def update(self, data):
+        pass
+
+class Publisher(Observable):
+    def __init__(self, name):
+        super().__init__()
+        self.name = name
+        self.value = ""
+
+    def set_value(self, value):
+        self.value = value
+        self.notify_observers(self.value)
+
+    async def detectarTemperatura(self):
+        generador = GeneradorTemperaturas()
+        while True:
+            nuevoRegistro = generador.generar_temperatura()
+            self.set_value(nuevoRegistro)
+            await asyncio.sleep(5)
+
+
+class Operator(Observer):
+    def __init__(self, name):
+        self.name = name
+        self._cola = LifoQueue()
+
+    def update(self, registro):
+        if len(self._cola.queue) == 12: # número de registros en 1 min
+            self._cola.get()
+        self._cola.put(registro)
+
+        self._realizarPasosEncadenados()
+
+    def _transformar_cola_a_lista(self, cola):
+        lista = list()
+        
+        for _ in range(len(cola)):
+            elem = cola.get()
+            lista.append(elem)
+
+        return lista
+
+    def _realizarPasosEncadenados(self):
+        cola = self._cola.queue
+        # lista_registros = self._transformar_cola_a_lista(cola)
+        fechas, temperaturas = zip(*cola)
+
+        fecha_actual = datetime.fromtimestamp(fechas[-1])
+        fecha_actual = fecha_actual.strftime('%d-%m-%Y %H:%M:%S')
+
+        temperaturas = list(temperaturas)
+
+        manejador_te= ManejadorTempEstadisticos()
+        manejador_lt= ManejadorLimTemp(succesor=manejador_te)
+        manejador_at= ManejadorAumentoTemp(succesor=manejador_lt)
+
+        request1 = Request("TempEstadisticos")
+        request2 = Request("LimTemp")
+        request3 = Request("AumentoTemp")
+
+        media, dt, q1, q2, q3, max, min = manejador_at.manejarTemperaturas(request1, temperaturas)
+        superaUmbral = manejador_at.manejarTemperaturas(request2, temperaturas)
+        superaDeltaUmbral = manejador_at.manejarTemperaturas(request3, temperaturas)
+
+        print("-----------------------")
+        print(f"Fecha: {fecha_actual}", end = " | ")
+        print(f"Media: {media}", end=" | ")
+        print(f"Desviación Típica: {dt}", end=" | ")
+        print(f"Q1: {q1}", end=" | ")
+        print(f"Mediana: {q2}", end=" | ")
+        print(f"Q3: {q3}", end=" | \n")
+        print(f"Máximo: {max}", end=" | ")
+        print(f"Mínimo: {min}", end=" | ")
+        print(f"Supera Umbral: {superaUmbral}", end=" | ")
+        print(f"Supera Delta Umbral: {superaDeltaUmbral}")
+        print("-----------------------")
+
+async def main():
+    sensor = Publisher("Sensor")
+    operador = Operator("Operador")
+
+    sensor.register_observer(operador)
+
+    await sensor.detectarTemperatura()
+
+if __name__ == "__main__":
+    asyncio.run(main())
