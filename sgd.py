@@ -237,7 +237,27 @@ class Operator(Observer):
         print(f"Supera Delta Umbral: {superaDeltaUmbral}")
         print("-----------------------")
 
-async def main():
+class Singleton:
+    _unicaInstancia = None
+
+    def __init__(self):
+        self.productor = Publisher("Sensor")
+        self.subscriptor = Operator("Operador")
+
+    @classmethod
+    def obtener_instancia(cls):
+        if not cls._unicaInstancia:
+            cls._unicaInstancia = cls()
+        return cls._unicaInstancia
+    
+    def iniciar_sgd_IoT(self):
+        self.productor.register_observer(self.subscriptor)
+        asyncio.run(self.productor.detectarTemperatura())
+    
+singleton = Singleton.obtener_instancia()
+singleton.iniciar_sgd_IoT()
+
+"""async def main():
     sensor = Publisher("Sensor")
     operador = Operator("Operador")
 
@@ -247,3 +267,4 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+"""
