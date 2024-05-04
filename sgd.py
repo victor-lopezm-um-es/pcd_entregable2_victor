@@ -253,18 +253,8 @@ class Singleton:
     def iniciar_sgd_IoT(self):
         self.productor.register_observer(self.subscriptor)
         asyncio.run(self.productor.detectarTemperatura())
-    
-singleton = Singleton.obtener_instancia()
-singleton.iniciar_sgd_IoT()
-
-"""async def main():
-    sensor = Publisher("Sensor")
-    operador = Operator("Operador")
-
-    sensor.register_observer(operador)
-
-    await sensor.detectarTemperatura()
 
 if __name__ == "__main__":
-    asyncio.run(main())
-"""
+    singleton = Singleton.obtener_instancia()
+    singleton.iniciar_sgd_IoT()
+
