@@ -3,7 +3,7 @@
 from functools import reduce
 from abc import ABC, abstractmethod
 import asyncio
-from queue import LifoQueue
+from queue import Queue
 import random
 import time
 from datetime import datetime
@@ -57,13 +57,12 @@ class Cuantiles(ComputoEstadistico):
         return tuple(map(cuartil, [1, 2, 3]))
 
 
-
 class Maximos_y_Minimos(ComputoEstadistico):
     def aplicarAlgoritmo(self, data):
-        max = reduce(lambda x, y: x if x > y else y, data)
-        min = reduce(lambda x, y: x if x < y else y, data)
+        maximo = reduce(lambda x, y: x if x > y else y, data)
+        minimo = reduce(lambda x, y: x if x < y else y, data)
 
-        return max, min
+        return maximo, minimo
     
 # Patrón Chain of Responsability
 class ManejadorTemperaturas:
@@ -94,7 +93,8 @@ class ManejadorTempEstadisticos(ManejadorTemperaturas):
 
 class ManejadorLimTemp(ManejadorTemperaturas):
     def manejarTemperaturas(self, request, data):
-        umbral = 41
+        umbral = 31
+
         if request.level == "LimTemp":
             ultima_temperatura = data[-1]
             return ultima_temperatura > umbral
@@ -104,10 +104,19 @@ class ManejadorLimTemp(ManejadorTemperaturas):
 
 class ManejadorAumentoTemp(ManejadorTemperaturas):
     def manejarTemperaturas(self, request, data):
-        delta_umbral = 2.5
+        delta_umbral = 10
+        n = len(data)
+        pivote = max((0, n-6))
+
         if request.level == "AumentoTemp":
-            data_30s = data[7:]
-            return any(map(lambda x, y: abs(x - y)  > delta_umbral, data, data[1:] + [data[-1]]))
+            data_30s = data[pivote:]
+
+            contexto = Context()
+            contexto.establecerEstrategia(Maximos_y_Minimos())
+            maximo, minimo = contexto.hacerAlgo(data_30s)
+
+            return abs(maximo - minimo) > delta_umbral
+        
         elif self.succesor:
             return self.succesor.manejarTemperaturas(request, data)
 
@@ -118,12 +127,9 @@ class Request:
 
 # Patrón Observer
 class GeneradorTemperaturas:
-    def __init__(self, ultima_temperatura=30, desviacion_tipica=1.5):
+    def __init__(self, ultima_temperatura=30, desviacion_tipica=3):
         self._ultima_temperatura = ultima_temperatura
         self._desviacion_tipica = desviacion_tipica
-
-    def _actualizarTemperatura(self, nuevaTemperatura):
-        self._ultima_temperatura = nuevaTemperatura
 
     def generar_temperatura(self):
         # Generar una temperatura aleatoria basada en la última temperatura registrada
@@ -177,7 +183,7 @@ class Publisher(Observable):
 class Operator(Observer):
     def __init__(self, name):
         self.name = name
-        self._cola = LifoQueue()
+        self._cola = Queue()
 
     def update(self, registro):
         if len(self._cola.queue) == 12: # número de registros en 1 min
@@ -218,7 +224,8 @@ class Operator(Observer):
         superaDeltaUmbral = manejador_at.manejarTemperaturas(request3, temperaturas)
 
         print("-----------------------")
-        print(f"Fecha: {fecha_actual}", end = " | ")
+        print(f"<<Fecha: {fecha_actual}>>")
+        print(f"Temperatura: {temperaturas[-1]}", end = " | ")
         print(f"Media: {media}", end=" | ")
         print(f"Desviación Típica: {dt}", end=" | ")
         print(f"Q1: {q1}", end=" | ")
