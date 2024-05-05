@@ -10,16 +10,16 @@ from datetime import datetime
 
 # Patrón Strategy
 class Context:
-    def __init__(self, strategy=None):
-        self._strategy = strategy
+    def __init__(self):
+        self._strategy = None
 
     def establecerEstrategia(self, strategy):
         self._strategy = strategy
 
-    def hacerAlgo(self, data):
+    def algoritmo_en_contexto(self, data):
         return self._strategy.aplicarAlgoritmo(data)
 
-class ComputoEstadistico: #Interfaz de Estrategia
+class ComputoEstadistico: # Interfaz de Estrategia
     def aplicarAlgoritmo(self, data):
         pass
     
@@ -78,13 +78,13 @@ class ManejadorTempEstadisticos(ManejadorTemperaturas):
             contexto = Context()
 
             contexto.establecerEstrategia(Media_y_DesvTip())
-            media, desv_tip = contexto.hacerAlgo(data)
+            media, desv_tip = contexto.algoritmo_en_contexto(data)
 
             contexto.establecerEstrategia(Cuantiles())
-            q1, q2, q3 = contexto.hacerAlgo(data)
+            q1, q2, q3 = contexto.algoritmo_en_contexto(data)
 
             contexto.establecerEstrategia(Maximos_y_Minimos())
-            max, min = contexto.hacerAlgo(data)
+            max, min = contexto.algoritmo_en_contexto(data)
 
             return media, desv_tip, q1, q2, q3, max, min
 
@@ -113,7 +113,7 @@ class ManejadorAumentoTemp(ManejadorTemperaturas):
 
             contexto = Context()
             contexto.establecerEstrategia(Maximos_y_Minimos())
-            maximo, minimo = contexto.hacerAlgo(data_30s)
+            maximo, minimo = contexto.algoritmo_en_contexto(data_30s)
 
             return abs(maximo - minimo) > delta_umbral
         
@@ -132,13 +132,13 @@ class GeneradorTemperaturas:
         self._desviacion_tipica = desviacion_tipica
 
     def generar_temperatura(self):
-        # Generar una temperatura aleatoria basada en la última temperatura registrada
+        # Genera una temperatura aleatoria basada en la última temperatura registrada
         nueva_temperatura = random.normalvariate(self._ultima_temperatura, self._desviacion_tipica)
 
-        # Actualizar la última temperatura registrada
+        # Actualiza la última temperatura registrada
         self._ultima_temperatura = nueva_temperatura
 
-        # Obtener el timestamp actual
+        # Obtiene el timestamp actual
         timestamp = int(time.time())
 
         return (timestamp, nueva_temperatura)
@@ -162,11 +162,11 @@ class Observer(ABC):
     def update(self, data):
         pass
 
-class Publisher(Observable):
+class PublicadorDatosSensor(Observable):
     def __init__(self, name):
         super().__init__()
         self.name = name
-        self.value = ""
+        self.value = tuple()
 
     def set_value(self, value):
         self.value = value
@@ -178,7 +178,6 @@ class Publisher(Observable):
             nuevoRegistro = generador.generar_temperatura()
             self.set_value(nuevoRegistro)
             await asyncio.sleep(5)
-
 
 class Operator(Observer):
     def __init__(self, name):
@@ -192,18 +191,8 @@ class Operator(Observer):
 
         self._realizarPasosEncadenados()
 
-    def _transformar_cola_a_lista(self, cola):
-        lista = list()
-        
-        for _ in range(len(cola)):
-            elem = cola.get()
-            lista.append(elem)
-
-        return lista
-
     def _realizarPasosEncadenados(self):
         cola = self._cola.queue
-        # lista_registros = self._transformar_cola_a_lista(cola)
         fechas, temperaturas = zip(*cola)
 
         fecha_actual = datetime.fromtimestamp(fechas[-1])
@@ -236,13 +225,14 @@ class Operator(Observer):
         print(f"Supera Umbral: {superaUmbral}", end=" | ")
         print(f"Supera Delta Umbral: {superaDeltaUmbral}")
         print("-----------------------")
-
-class Singleton:
+        
+# Patrón Singleton
+class Singleton_Sis_IoT:
     _unicaInstancia = None
 
     def __init__(self):
-        self.productor = Publisher("Sensor")
-        self.subscriptor = Operator("Operador")
+        self._productor = PublicadorDatosSensor("Sensor")
+        self._operador = Operator("Operador")
 
     @classmethod
     def obtener_instancia(cls):
@@ -251,10 +241,10 @@ class Singleton:
         return cls._unicaInstancia
     
     def iniciar_sgd_IoT(self):
-        self.productor.register_observer(self.subscriptor)
-        asyncio.run(self.productor.detectarTemperatura())
+        self._productor.register_observer(self._operador)
+        asyncio.run(self._productor.detectarTemperatura())
 
 if __name__ == "__main__":
-    singleton = Singleton.obtener_instancia()
+    singleton = Singleton_Sis_IoT.obtener_instancia()
     singleton.iniciar_sgd_IoT()
 
