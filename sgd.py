@@ -182,17 +182,17 @@ class PublicadorDatosSensor(Observable):
 class Operator(Observer):
     def __init__(self, name):
         self.name = name
-        self._cola = Queue()
+        self.cola = Queue()
 
     def update(self, registro):
-        if len(self._cola.queue) == 12: # número de registros en 1 min
-            self._cola.get()
-        self._cola.put(registro)
+        if len(self.cola.queue) == 12: # número de registros en 1 min
+            self.cola.get()
+        self.cola.put(registro)
 
         self._realizarPasosEncadenados()
 
     def _realizarPasosEncadenados(self):
-        cola = self._cola.queue
+        cola = self.cola.queue
         fechas, temperaturas = zip(*cola)
 
         fecha_actual = datetime.fromtimestamp(fechas[-1])
