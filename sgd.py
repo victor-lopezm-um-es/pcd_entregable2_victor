@@ -65,7 +65,7 @@ class Maximos_y_Minimos(ComputoEstadistico):
 
         return maximo, minimo
     
-# Patrón Chain of Responsability
+# Patrón Chain of Responsibility
 class ManejadorTemperaturas:
     def __init__(self, succesor=None):
         self.succesor = succesor
