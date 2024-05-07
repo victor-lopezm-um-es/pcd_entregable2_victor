@@ -1,4 +1,5 @@
 # PRUEBAS UNITARIAS PARA EL SISTEMA IoT
+
 import pytest
 from sgd import *
 import numpy as np
